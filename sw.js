@@ -1,4 +1,4 @@
-const CACHE = 'receipt-scanner-v1';
-const ASSETS = ['./','./index.html','./manifest.json'];
+const CACHE = 'receipt-scanner-v2';
+const ASSETS = ['./', './index.html', './manifest.json'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
 self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
