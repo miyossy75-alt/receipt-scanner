@@ -1,0 +1,12 @@
+{
+  "name": "仕入れレシート記録ツール",
+  "short_name": "レシート記録",
+  "start_url": "/receipt-scanner/",
+  "display": "standalone",
+  "background_color": "#f0f4f8",
+  "theme_color": "#2c5f8a",
+  "description": "仕入れレシートを撮影・記録・集計するツール",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
