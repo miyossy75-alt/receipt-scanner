@@ -8,15 +8,11 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-      background: #f0f4f8;
-      color: #333;
-      min-height: 100vh;
+      background: #f0f4f8; color: #333; min-height: 100vh;
     }
     header {
       background: linear-gradient(120deg, #2c5f8a, #1a3a5c);
-      color: #fff;
-      padding: 20px 16px;
-      text-align: center;
+      color: #fff; padding: 20px 16px; text-align: center;
     }
     header h1 { font-size: 1.4rem; margin-bottom: 4px; }
     header p { font-size: 0.85rem; opacity: 0.8; }
@@ -62,6 +58,21 @@
       cursor: pointer; margin-top: 16px; transition: background 0.2s;
     }
     .btn-primary:hover { background: #1a3a5c; }
+    .btn-ai {
+      display: block; width: 100%; padding: 12px;
+      background: linear-gradient(120deg, #7b2ff7, #4a90d9);
+      color: #fff; border: none; border-radius: 8px; font-size: 1rem;
+      cursor: pointer; margin-top: 10px; transition: opacity 0.2s;
+    }
+    .btn-ai:hover { opacity: 0.88; }
+    .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ai-status {
+      margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+      font-size: 0.88rem; display: none;
+    }
+    .ai-status.loading { background: #e8f0fa; color: #2c5f8a; display: block; }
+    .ai-status.error { background: #fdecea; color: #c0392b; display: block; }
+    .ai-status.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
     .toolbar input, .toolbar select { flex: 1; min-width: 120px; }
     .btn-sm {
@@ -118,6 +129,11 @@
     .modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
     .btn-cancel { padding: 8px 16px; border: 1px solid #ccc; background: #fff; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
     .btn-danger { padding: 8px 16px; background: #c0392b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    .api-key-notice {
+      background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
+      padding: 12px 14px; font-size: 0.85rem; color: #795548; margin-bottom: 14px;
+    }
+    input[type="password"] { font-family: monospace; }
   </style>
 </head>
 <body>
@@ -129,6 +145,7 @@
   <button class="tab-btn active" onclick="showTab('input')">記録する</button>
   <button class="tab-btn" onclick="showTab('list')">一覧</button>
   <button class="tab-btn" onclick="showTab('summary')">集計</button>
+  <button class="tab-btn" onclick="showTab('settings')">設定</button>
 </div>
 <div id="tab-input" class="tab-panel active">
   <div class="card">
@@ -139,6 +156,8 @@
       <p>タップして写真を撮るか<br>画像ファイルを選択</p>
     </div>
     <img id="preview-img" alt="レシートプレビュー">
+    <button class="btn-ai" id="ai-btn" onclick="analyzeReceipt()" disabled>✨ AIで自動読み取り</button>
+    <div class="ai-status" id="ai-status"></div>
   </div>
   <div class="card">
     <h2>仕入れ情報を入力</h2>
@@ -204,6 +223,19 @@
     </table>
   </div>
 </div>
+<div id="tab-settings" class="tab-panel">
+  <div class="card">
+    <h2>AI自動読み取り設定</h2>
+    <div class="api-key-notice">
+      APIキーはこのデバイスのローカルストレージにのみ保存され、外部には送信されません。
+    </div>
+    <label for="api-key">Anthropic APIキー</label>
+    <input type="password" id="api-key" placeholder="sk-ant-..." oninput="saveApiKey()">
+    <p style="font-size:0.8rem;color:#999;margin-top:8px;">
+      入力すると自動保存されます。「記録する」タブの「✨ AIで自動読み取り」が使えるようになります。
+    </p>
+  </div>
+</div>
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
     <h3>この記録を削除しますか？</h3>
@@ -217,10 +249,32 @@
 <footer>データはブラウザのローカルストレージに保存されます</footer>
 <script>
   const STORAGE_KEY = 'receipts_v1';
+  const API_KEY_STORAGE = 'anthropic_api_key';
   let receipts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   let deleteTarget = null;
+  let currentImageBase64 = null;
+  let currentImageType = null;
+
   document.getElementById('date').value = new Date().toISOString().slice(0, 10);
+
+  const savedKey = localStorage.getItem(API_KEY_STORAGE) || '';
+  document.getElementById('api-key').value = savedKey;
+  updateAiBtn();
+
+  function saveApiKey() {
+    const key = document.getElementById('api-key').value.trim();
+    localStorage.setItem(API_KEY_STORAGE, key);
+    updateAiBtn();
+  }
+
+  function updateAiBtn() {
+    const key = localStorage.getItem(API_KEY_STORAGE) || '';
+    const btn = document.getElementById('ai-btn');
+    btn.disabled = !(key && currentImageBase64);
+  }
+
   function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts)); }
+
   function showTab(name) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -229,6 +283,7 @@
     if (name === 'list') renderList();
     if (name === 'summary') renderSummary();
   }
+
   function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -237,39 +292,103 @@
       const img = document.getElementById('preview-img');
       img.src = ev.target.result;
       img.style.display = 'block';
+      currentImageType = file.type || 'image/jpeg';
+      currentImageBase64 = ev.target.result.split(',')[1];
+      updateAiBtn();
     };
     reader.readAsDataURL(file);
   }
+
+  async function analyzeReceipt() {
+    const apiKey = localStorage.getItem(API_KEY_STORAGE) || '';
+    if (!apiKey || !currentImageBase64) return;
+
+    const btn = document.getElementById('ai-btn');
+    const status = document.getElementById('ai-status');
+    btn.disabled = true;
+    status.className = 'ai-status loading';
+    status.textContent = '🔍 AIがレシートを読み取り中…';
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 512,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: currentImageType, data: currentImageBase64 } },
+              { type: 'text', text: `このレシート画像から以下の情報をJSON形式で抽出してください。\n読み取れない項目はnullにしてください。日付はYYYY-MM-DD形式で。\n{\n  "date": "YYYY-MM-DD",\n  "amount": 合計金額の数値のみ,\n  "store": "店舗名",\n  "items": "品目の一覧（カンマ区切り）"\n}\nJSONのみ返してください。` }
+            ]
+          }]
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `APIエラー (${res.status})`);
+      }
+
+      const data = await res.json();
+      const text = data.content[0].text.trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('レスポンスの解析に失敗しました');
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.date) document.getElementById('date').value = parsed.date;
+      if (parsed.amount) document.getElementById('amount').value = parsed.amount;
+      if (parsed.store) document.getElementById('store').value = parsed.store;
+      if (parsed.items) document.getElementById('items').value = parsed.items;
+
+      status.className = 'ai-status success';
+      status.textContent = '✅ 読み取り完了！内容を確認してから保存してください。';
+    } catch (err) {
+      status.className = 'ai-status error';
+      status.textContent = '❌ ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function saveReceipt() {
     const date = document.getElementById('date').value;
     const amount = document.getElementById('amount').value;
     const store = document.getElementById('store').value.trim();
     if (!date || !amount || !store) { alert('日付・金額・店舗名は必須です'); return; }
     const imgEl = document.getElementById('preview-img');
-    const receipt = {
+    receipts.unshift({
       id: Date.now(), date, amount: parseInt(amount, 10), store,
       category: document.getElementById('category').value,
       items: document.getElementById('items').value.trim(),
       notes: document.getElementById('notes').value.trim(),
       image: imgEl.style.display !== 'none' ? imgEl.src : null,
-    };
-    receipts.unshift(receipt);
-    save();
-    resetForm();
-    alert('保存しました！');
+    });
+    save(); resetForm(); alert('保存しました！');
   }
+
   function resetForm() {
     ['amount','store','category','items','notes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('date').value = new Date().toISOString().slice(0, 10);
     const img = document.getElementById('preview-img');
     img.src = ''; img.style.display = 'none';
     document.getElementById('file-input').value = '';
+    document.getElementById('ai-status').className = 'ai-status';
+    currentImageBase64 = null; currentImageType = null;
+    updateAiBtn();
   }
+
   function renderList() {
     const q = document.getElementById('search').value.toLowerCase();
     const cat = document.getElementById('filter-cat').value;
     const container = document.getElementById('receipt-list');
-    let filtered = receipts.filter(r => {
+    const filtered = receipts.filter(r => {
       const matchQ = !q || r.store.toLowerCase().includes(q) || (r.items || '').toLowerCase().includes(q);
       return matchQ && (!cat || r.category === cat);
     });
@@ -289,23 +408,28 @@
         </div>
       </div>`).join('');
   }
+
   function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
   function viewImage(id) {
     const r = receipts.find(x => x.id === id);
-    if (!r || !r.image) return;
+    if (!r?.image) return;
     const w = window.open();
     w.document.write(`<img src="${r.image}" style="max-width:100%">`);
   }
+
   function askDelete(id) {
     const r = receipts.find(x => x.id === id);
     deleteTarget = id;
     document.getElementById('delete-desc').textContent = `${r.date} / ${r.store} / ¥${r.amount.toLocaleString()}`;
     document.getElementById('delete-modal').classList.add('open');
   }
+
   function closeModal() { document.getElementById('delete-modal').classList.remove('open'); deleteTarget = null; }
   function confirmDelete() { receipts = receipts.filter(r => r.id !== deleteTarget); save(); closeModal(); renderList(); }
+
   function renderSummary() {
     const total = receipts.reduce((s, r) => s + r.amount, 0);
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -327,6 +451,7 @@
         `<tr><td>${k}</td><td>${v.count}件</td><td>¥${v.total.toLocaleString()}</td></tr>`
       ).join('') || '<tr><td colspan="3" style="text-align:center;color:#aaa">データなし</td></tr>';
   }
+
   function exportCSV() {
     const header = '日付,店舗,カテゴリ,金額,品目,備考';
     const rows = receipts.map(r =>
