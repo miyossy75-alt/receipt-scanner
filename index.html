@@ -11,86 +11,46 @@
   <link rel="apple-touch-icon" href="icon.svg">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
-      background: #f0f4f8; color: #333; min-height: 100vh;
-    }
-    header {
-      background: linear-gradient(120deg, #2c5f8a, #1a3a5c);
-      color: #fff; padding: 20px 16px; text-align: center;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; background: #f0f4f8; color: #333; min-height: 100vh; }
+    header { background: linear-gradient(120deg, #2c5f8a, #1a3a5c); color: #fff; padding: 20px 16px; text-align: center; }
     header h1 { font-size: 1.4rem; margin-bottom: 4px; }
     header p { font-size: 0.85rem; opacity: 0.8; }
     .tabs { display: flex; background: #1a3a5c; }
-    .tab-btn {
-      flex: 1; padding: 10px; border: none; background: transparent;
-      color: rgba(255,255,255,0.6); font-size: 0.9rem; cursor: pointer;
-      border-bottom: 3px solid transparent; transition: all 0.2s;
-    }
+    .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: rgba(255,255,255,0.6); font-size: 0.9rem; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
     .tab-btn.active { color: #fff; border-bottom-color: #64b5f6; }
     .tab-panel { display: none; padding: 16px; max-width: 720px; margin: 0 auto; }
     .tab-panel.active { display: block; }
-    .card {
-      background: #fff; border-radius: 10px; padding: 20px;
-      margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
+    .card { background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
     .card h2 { font-size: 1rem; margin-bottom: 14px; color: #2c5f8a; }
     label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 4px; margin-top: 12px; }
     label:first-of-type { margin-top: 0; }
-    input, select, textarea {
-      width: 100%; padding: 9px 12px; border: 1px solid #ccd6e0;
-      border-radius: 6px; font-size: 0.95rem; font-family: inherit; transition: border-color 0.2s;
-    }
+    input, select, textarea { width: 100%; padding: 9px 12px; border: 1px solid #ccd6e0; border-radius: 6px; font-size: 0.95rem; font-family: inherit; transition: border-color 0.2s; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: #2c5f8a; }
     textarea { resize: vertical; min-height: 70px; }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     @media (max-width: 480px) { .row2 { grid-template-columns: 1fr; } }
-    .upload-area {
-      border: 2px dashed #aac4da; border-radius: 8px; padding: 24px;
-      text-align: center; cursor: pointer; background: #f5f9fd;
-      transition: background 0.2s; position: relative;
-    }
+    .upload-area { border: 2px dashed #aac4da; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; background: #f5f9fd; transition: background 0.2s; position: relative; }
     .upload-area:hover { background: #eaf2fb; }
-    .upload-area input[type="file"] {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-    }
+    .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
     .upload-area p { font-size: 0.9rem; color: #666; pointer-events: none; }
     .upload-area .icon { font-size: 2rem; margin-bottom: 8px; }
     #preview-img { max-width: 100%; border-radius: 6px; margin-top: 12px; display: none; }
-    .btn-primary {
-      display: block; width: 100%; padding: 12px; background: #2c5f8a;
-      color: #fff; border: none; border-radius: 8px; font-size: 1rem;
-      cursor: pointer; margin-top: 16px; transition: background 0.2s;
-    }
+    .btn-primary { display: block; width: 100%; padding: 12px; background: #2c5f8a; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-top: 16px; transition: background 0.2s; }
     .btn-primary:hover { background: #1a3a5c; }
-    .btn-ai {
-      display: block; width: 100%; padding: 12px;
-      background: linear-gradient(120deg, #7b2ff7, #4a90d9);
-      color: #fff; border: none; border-radius: 8px; font-size: 1rem;
-      cursor: pointer; margin-top: 10px; transition: opacity 0.2s;
-    }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-ai { display: block; width: 100%; padding: 12px; background: linear-gradient(120deg, #7b2ff7, #4a90d9); color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-top: 10px; transition: opacity 0.2s; }
     .btn-ai:hover { opacity: 0.88; }
     .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
-    .ai-status {
-      margin-top: 10px; padding: 10px 14px; border-radius: 8px;
-      font-size: 0.88rem; display: none;
-    }
+    .ai-status { margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; display: none; }
     .ai-status.loading { background: #e8f0fa; color: #2c5f8a; display: block; }
     .ai-status.error { background: #fdecea; color: #c0392b; display: block; }
     .ai-status.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
     .toolbar input, .toolbar select { flex: 1; min-width: 120px; }
-    .btn-sm {
-      padding: 8px 14px; border: 1px solid #2c5f8a; background: #fff;
-      color: #2c5f8a; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;
-    }
+    .btn-sm { padding: 8px 14px; border: 1px solid #2c5f8a; background: #fff; color: #2c5f8a; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
     .btn-sm:hover { background: #2c5f8a; color: #fff; }
     .receipt-list { display: flex; flex-direction: column; gap: 12px; }
-    .receipt-item {
-      background: #fff; border-radius: 10px; padding: 14px 16px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.07); display: grid;
-      grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start;
-    }
+    .receipt-item { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
     .receipt-item .store { font-weight: 600; font-size: 1rem; }
     .receipt-item .amount { font-size: 1.1rem; font-weight: 700; color: #2c5f8a; grid-row: 1; grid-column: 2; text-align: right; }
     .receipt-item .meta { font-size: 0.8rem; color: #888; grid-column: 1 / -1; }
@@ -118,6 +78,8 @@
     .btn-danger { padding: 8px 16px; background: #c0392b; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
     .api-key-notice { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px 14px; font-size: 0.85rem; color: #795548; margin-bottom: 14px; }
     input[type="password"] { font-family: monospace; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2e7d32; color: #fff; padding: 14px 24px; border-radius: 10px; font-size: 1rem; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: nowrap; }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -210,9 +172,7 @@
 <div id="tab-settings" class="tab-panel">
   <div class="card">
     <h2>AI自動読み取り設定</h2>
-    <div class="api-key-notice">
-      APIキーはこのデバイスのローカルストレージにのみ保存され、外部には送信されません。
-    </div>
+    <div class="api-key-notice">APIキーはこのデバイスのローカルストレージにのみ保存されます。</div>
     <label for="api-key">Anthropic APIキー</label>
     <input type="password" id="api-key" placeholder="sk-ant-..." oninput="saveApiKey()">
     <p style="font-size:0.8rem;color:#999;margin-top:8px;">入力すると自動保存されます。</p>
@@ -228,6 +188,7 @@
     </div>
   </div>
 </div>
+<div class="toast" id="toast"></div>
 <footer>データはブラウザのローカルストレージに保存されます</footer>
 <script>
   const STORAGE_KEY = 'receipts_v1';
@@ -239,8 +200,7 @@
   let currentImageType = null;
 
   document.getElementById('date').value = new Date().toISOString().slice(0, 10);
-  const savedKey = localStorage.getItem(API_KEY_STORAGE) || '';
-  document.getElementById('api-key').value = savedKey;
+  document.getElementById('api-key').value = localStorage.getItem(API_KEY_STORAGE) || '';
   updateAiBtn();
 
   function saveApiKey() {
@@ -251,6 +211,13 @@
     document.getElementById('ai-btn').disabled = !(localStorage.getItem(API_KEY_STORAGE) && currentImageBase64);
   }
   function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts)); }
+  function showToast(msg, color) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = color || '#2e7d32';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
 
   function showTab(name) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -331,7 +298,10 @@
     const date = document.getElementById('date').value;
     const amount = document.getElementById('amount').value;
     const store = document.getElementById('store').value.trim();
-    if (!date || !amount || !store) { alert('日付・金額・店舗名は必須です'); return; }
+    if (!date || !amount || !store) { showToast('日付・金額・店舗名は必須です', '#c0392b'); return; }
+    const btn = document.querySelector('.btn-primary');
+    btn.disabled = true;
+    btn.textContent = '送信中…';
     const imgEl = document.getElementById('preview-img');
     const receipt = {
       id: Date.now(), date, amount: parseInt(amount, 10), store,
@@ -350,10 +320,13 @@
         body: JSON.stringify({ date, amount: receipt.amount, store, category: receipt.category, items: receipt.items, notes: receipt.notes })
       });
       resetForm();
-      alert('保存しました！スプレッドシートにも記録しました。');
+      showToast('✅ 保存完了！シートに記録しました');
     } catch(err) {
       resetForm();
-      alert('ローカルに保存しました。スプレッドシートへの送信に失敗しました：' + err.message);
+      showToast('⚠️ ローカル保存済み（シート送信失敗）', '#e67e22');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '保存する';
     }
   }
 
