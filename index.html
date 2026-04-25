@@ -184,21 +184,21 @@
       </div>
     </div>
     <label for="store">店舗・仕入れ先 <span style="color:#c0392b">*</span></label>
-    <input type="text" id="store" placeholder="例：○○市場、△△スーパー">
+    <input type="text" id="store" placeholder="例：Amazon、ヤフオク">
     <label for="category">カテゴリ</label>
     <select id="category">
       <option value="">選択してください</option>
-      <option value="食材">食材</option>
-      <option value="調味料">調味料</option>
-      <option value="飲料">飲料</option>
-      <option value="消耗品">消耗品</option>
-      <option value="備品">備品</option>
+      <option value="ゲーム機">ゲーム機</option>
+      <option value="ゲームソフト">ゲームソフト</option>
+      <option value="PC周辺機器">PC周辺機器</option>
+      <option value="美容家電">美容家電</option>
+      <option value="一般家電">一般家電</option>
       <option value="その他">その他</option>
     </select>
     <label for="items">品目メモ</label>
-    <textarea id="items" placeholder="例：卵×30個、バター500g…"></textarea>
+    <textarea id="items" placeholder="例：Nintendo Switch、PS5…"></textarea>
     <label for="notes">備考</label>
-    <textarea id="notes" placeholder="自由記入（支払方法、担当者など）" style="min-height:50px"></textarea>
+    <textarea id="notes" placeholder="自由記入（注文番号、コンディションなど）" style="min-height:50px"></textarea>
     <button class="btn-primary" onclick="saveReceipt()">保存する</button>
   </div>
 </div>
@@ -207,11 +207,11 @@
     <input type="text" id="search" placeholder="店名・品目で検索" oninput="renderList()">
     <select id="filter-cat" onchange="renderList()">
       <option value="">全カテゴリ</option>
-      <option value="食材">食材</option>
-      <option value="調味料">調味料</option>
-      <option value="飲料">飲料</option>
-      <option value="消耗品">消耗品</option>
-      <option value="備品">備品</option>
+      <option value="ゲーム機">ゲーム機</option>
+      <option value="ゲームソフト">ゲームソフト</option>
+      <option value="PC周辺機器">PC周辺機器</option>
+      <option value="美容家電">美容家電</option>
+      <option value="一般家電">一般家電</option>
       <option value="その他">その他</option>
     </select>
     <button class="btn-sm" onclick="exportCSV()">CSV出力</button>
@@ -260,3 +260,241 @@
 </div>
 <div class="toast" id="toast"></div>
 <footer>データはブラウザのローカルストレージに保存されます</footer>
+<script>
+  const STORAGE_KEY = 'receipts_v1';
+  const API_KEY_STORAGE = 'anthropic_api_key';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbw5jHAWHMdDzmuCUrfToDWHW1Ck3zmKiprBqC4GtkHxlQPNwPmrS46hy0thSMgIJbkYHw/exec';
+  let receipts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let deleteTarget = null;
+  let currentImageBase64 = null;
+  let currentImageType = null;
+
+  function todayJST() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  document.getElementById('date').value = todayJST();
+  const savedKey = localStorage.getItem(API_KEY_STORAGE) || '';
+  document.getElementById('api-key').value = savedKey;
+  updateAiBtn();
+
+  function saveApiKey() {
+    localStorage.setItem(API_KEY_STORAGE, document.getElementById('api-key').value.trim());
+    updateAiBtn();
+  }
+  function updateAiBtn() {
+    document.getElementById('ai-btn').disabled = !(localStorage.getItem(API_KEY_STORAGE) && currentImageBase64);
+  }
+  function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts)); }
+
+  function showTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.currentTarget.classList.add('active');
+    if (name === 'list') renderList();
+    if (name === 'summary') renderSummary();
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = document.getElementById('preview-img');
+      img.src = ev.target.result;
+      img.style.display = 'block';
+      currentImageType = file.type || 'image/jpeg';
+      currentImageBase64 = ev.target.result.split(',')[1];
+      updateAiBtn();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyzeReceipt() {
+    const apiKey = localStorage.getItem(API_KEY_STORAGE) || '';
+    if (!apiKey || !currentImageBase64) return;
+    const btn = document.getElementById('ai-btn');
+    const status = document.getElementById('ai-status');
+    btn.disabled = true;
+    status.className = 'ai-status loading';
+    status.textContent = '🔍 AIがレシートを読み取り中…';
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 512,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: currentImageType, data: currentImageBase64 } },
+              { type: 'text', text: 'このレシート画像から以下の情報をJSON形式で抽出してください。読み取れない項目はnullにしてください。日付はYYYY-MM-DD形式で。\n{"date":"YYYY-MM-DD","amount":合計金額の数値のみ,"store":"店舗名","items":"品目の一覧（カンマ区切り）"}\nJSONのみ返してください。' }
+            ]
+          }]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `APIエラー (${res.status})`);
+      }
+      const data = await res.json();
+      const jsonMatch = data.content[0].text.trim().match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('レスポンスの解析に失敗しました');
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.date) document.getElementById('date').value = parsed.date;
+      if (parsed.amount) document.getElementById('amount').value = parsed.amount;
+      if (parsed.store) document.getElementById('store').value = parsed.store;
+      if (parsed.items) document.getElementById('items').value = parsed.items;
+      status.className = 'ai-status success';
+      status.textContent = '✅ 読み取り完了！内容を確認してから保存してください。';
+    } catch (err) {
+      status.className = 'ai-status error';
+      status.textContent = '❌ ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function showToast(msg, color) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = color || '#2e7d32';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  async function saveReceipt() {
+    const date = document.getElementById('date').value;
+    const amount = document.getElementById('amount').value;
+    const store = document.getElementById('store').value.trim();
+    if (!date || !amount || !store) { showToast('日付・金額・店舗名は必須です', '#c0392b'); return; }
+    const btn = document.querySelector('.btn-primary');
+    btn.disabled = true;
+    btn.textContent = '送信中…';
+    const imgEl = document.getElementById('preview-img');
+    const receipt = {
+      id: Date.now(), date, amount: parseInt(amount, 10), store,
+      category: document.getElementById('category').value,
+      items: document.getElementById('items').value.trim(),
+      notes: document.getElementById('notes').value.trim(),
+      image: imgEl.style.display !== 'none' ? imgEl.src : null,
+    };
+    receipts.unshift(receipt);
+    save();
+    try {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, amount: receipt.amount, store, category: receipt.category, items: receipt.items, notes: receipt.notes })
+      });
+      resetForm();
+      showToast('✅ 保存完了！シートに記録しました');
+    } catch(err) {
+      resetForm();
+      showToast('⚠️ ローカル保存済み（シート送信失敗）', '#e67e22');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '保存する';
+    }
+  }
+
+  function resetForm() {
+    ['amount','store','category','items','notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('date').value = todayJST();
+    const img = document.getElementById('preview-img');
+    img.src = ''; img.style.display = 'none';
+    document.getElementById('file-input').value = '';
+    document.getElementById('ai-status').className = 'ai-status';
+    currentImageBase64 = null; currentImageType = null;
+    updateAiBtn();
+  }
+
+  function renderList() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const cat = document.getElementById('filter-cat').value;
+    const container = document.getElementById('receipt-list');
+    const filtered = receipts.filter(r => {
+      const matchQ = !q || r.store.toLowerCase().includes(q) || (r.items||'').toLowerCase().includes(q);
+      return matchQ && (!cat || r.category === cat);
+    });
+    if (!filtered.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>記録がありません</p></div>';
+      return;
+    }
+    container.innerHTML = filtered.map(r => `
+      <div class="receipt-item">
+        <div class="store">${esc(r.store)}</div>
+        <div class="amount">¥${r.amount.toLocaleString()}</div>
+        <div class="meta">${r.date}${r.category?' ・ '+esc(r.category):''}${r.items?'<br>'+esc(r.items):''}</div>
+        ${r.notes?`<div class="meta" style="color:#aaa">${esc(r.notes)}</div>`:''}
+        <div class="actions">
+          ${r.image?`<button class="btn-icon" onclick="viewImage(${r.id})">画像</button>`:''}
+          <button class="btn-icon danger" onclick="askDelete(${r.id})">削除</button>
+        </div>
+      </div>`).join('');
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function viewImage(id) {
+    const r = receipts.find(x => x.id === id);
+    if (!r?.image) return;
+    const w = window.open();
+    w.document.write(`<img src="${r.image}" style="max-width:100%">`);
+  }
+  function askDelete(id) {
+    const r = receipts.find(x => x.id === id);
+    deleteTarget = id;
+    document.getElementById('delete-desc').textContent = `${r.date} / ${r.store} / ¥${r.amount.toLocaleString()}`;
+    document.getElementById('delete-modal').classList.add('open');
+  }
+  function closeModal() { document.getElementById('delete-modal').classList.remove('open'); deleteTarget = null; }
+  function confirmDelete() { receipts = receipts.filter(r => r.id !== deleteTarget); save(); closeModal(); renderList(); }
+
+  function renderSummary() {
+    const total = receipts.reduce((s,r) => s+r.amount, 0);
+    const thisMonth = todayJST().slice(0,7);
+    const monthTotal = receipts.filter(r => r.date.startsWith(thisMonth)).reduce((s,r) => s+r.amount, 0);
+    document.getElementById('summary-grid').innerHTML = `
+      <div class="stat-card"><div class="val">${receipts.length}</div><div class="lbl">総記録件数</div></div>
+      <div class="stat-card"><div class="val">¥${total.toLocaleString()}</div><div class="lbl">累計金額</div></div>
+      <div class="stat-card"><div class="val">¥${monthTotal.toLocaleString()}</div><div class="lbl">今月の合計</div></div>`;
+    const cats = {};
+    receipts.forEach(r => { const k=r.category||'未分類'; if(!cats[k]) cats[k]={count:0,total:0}; cats[k].count++; cats[k].total+=r.amount; });
+    document.querySelector('#category-table tbody').innerHTML =
+      Object.entries(cats).sort((a,b)=>b[1].total-a[1].total).map(([k,v])=>
+        `<tr><td>${esc(k)}</td><td>${v.count}件</td><td>¥${v.total.toLocaleString()}</td></tr>`
+      ).join('') || '<tr><td colspan="3" style="text-align:center;color:#aaa">データなし</td></tr>';
+    const months = {};
+    receipts.forEach(r => { const k=r.date.slice(0,7); if(!months[k]) months[k]={count:0,total:0}; months[k].count++; months[k].total+=r.amount; });
+    document.querySelector('#monthly-table tbody').innerHTML =
+      Object.entries(months).sort((a,b)=>b[0].localeCompare(a[0])).map(([k,v])=>
+        `<tr><td>${k}</td><td>${v.count}件</td><td>¥${v.total.toLocaleString()}</td></tr>`
+      ).join('') || '<tr><td colspan="3" style="text-align:center;color:#aaa">データなし</td></tr>';
+  }
+
+  function exportCSV() {
+    const header = '日付,店舗,カテゴリ,金額,品目,備考';
+    const rows = receipts.map(r =>
+      [r.date,r.store,r.category,r.amount,r.items,r.notes].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+    const blob = new Blob(['\uFEFF'+[header,...rows].join('\n')], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `receipts_${todayJST()}.csv`;
+    a.click();
+  }
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+</script>
+</body>
+</html>
